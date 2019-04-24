@@ -14,7 +14,6 @@ use crate::theme;
 use crate::vec::Vec2;
 use crate::view::{self, Finder, IntoBoxedView, Position, View};
 use crate::views::{self, LayerPosition};
-use views::debug_view::LogViewFilter;
 
 static DEBUG_VIEW_ID: &'static str = "_cursive_debug_view";
 
@@ -237,35 +236,19 @@ impl Cursive {
     ///
     /// Currently, this will show logs if [`logger::init()`](crate::logger::init()) was called.
     pub fn show_debug_console(&mut self) {
-        let debug_log_filter = views::Panel::new(
-                views::ListView::new().child(
-                    "Max Log Level",
-                    views::SelectView::new()
-                        .popup()
-                        .item("Error", LogViewFilter::Error)
-                        .item("Warn", LogViewFilter::Warn)
-                        .item("Info", LogViewFilter::Info)
-                        .item("Debug", LogViewFilter::Debug)
-                        .on_submit({
-                            move |s, new_filter| {
-                                s.call_on_id(DEBUG_VIEW_ID, {
-                                    move |debug_view: &mut views::DebugView| {
-                                        debug_view.set_filter(new_filter.clone());
-                                    }
-                                });
-                            }
-                        })
+        let debug_log_filter = views::Panel::new(views::DebugFilter::new(
+            DEBUG_VIEW_ID.to_string(),
         ));
-
         let debug_logs = views::ScrollView::new(views::IdView::new(
-                            DEBUG_VIEW_ID,
-                            views::DebugView::new(),
+            DEBUG_VIEW_ID,
+            views::DebugView::new(),
         ));
 
-        self.add_layer(views::Dialog::around(
+        self.add_layer(
+            views::Dialog::around(
                 views::LinearLayout::vertical()
                     .child(debug_log_filter)
-                    .child(debug_logs)
+                    .child(debug_logs),
             )
             .title("Debug console"),
         );
@@ -403,7 +386,8 @@ impl Cursive {
     ///
     /// `filename` must point to a valid toml file.
     pub fn load_theme_file<P: AsRef<Path>>(
-        &mut self, filename: P,
+        &mut self,
+        filename: P,
     ) -> Result<(), theme::Error> {
         theme::load_theme_file(filename).map(|theme| self.set_theme(theme))
     }
@@ -509,7 +493,9 @@ impl Cursive {
     /// # }
     /// ```
     pub fn call_on<V, F, R>(
-        &mut self, sel: &view::Selector<'_>, callback: F,
+        &mut self,
+        sel: &view::Selector<'_>,
+        callback: F,
     ) -> Option<R>
     where
         V: View + Any,
@@ -697,7 +683,9 @@ impl Cursive {
 
     /// Convenient stub forwarding layer repositioning.
     pub fn reposition_layer(
-        &mut self, layer: LayerPosition, position: Position,
+        &mut self,
+        layer: LayerPosition,
+        position: Position,
     ) {
         self.screen_mut().reposition_layer(layer, position);
     }
