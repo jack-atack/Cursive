@@ -2,6 +2,7 @@ use crate::logger;
 use crate::theme;
 use crate::vec::Vec2;
 use crate::view::View;
+use crate::views;
 use crate::Printer;
 
 use unicode_width::UnicodeWidthStr;
@@ -14,14 +15,46 @@ pub enum LogViewFilter {
     Debug,
 }
 
-fn record_above_set_filter(record_level: log::Level, display_level: LogViewFilter) -> bool
-{
+fn record_above_set_filter(
+    record_level: log::Level,
+    display_level: LogViewFilter,
+) -> bool {
     match record_level {
         log::Level::Error => true,
         log::Level::Warn => (display_level != LogViewFilter::Error),
-        log::Level::Info => ((display_level == LogViewFilter::Info) || (display_level == LogViewFilter::Debug)),
+        log::Level::Info => {
+            ((display_level == LogViewFilter::Info)
+                || (display_level == LogViewFilter::Debug))
+        }
         log::Level::Debug => (display_level == LogViewFilter::Debug),
         log::Level::Trace => (display_level == LogViewFilter::Debug),
+    }
+}
+
+/// View used to toggle the log-levels shown within the debug log console
+pub struct DebugFilter {}
+
+impl DebugFilter {
+    /// Creates a new DebugFilter, acting on the DebugView with the passed in view ID
+    pub fn new(debug_view_id: String) -> views::ListView {
+        views::ListView::new().child(
+            "Max Log Level",
+            views::SelectView::new()
+                .popup()
+                .item("Error", LogViewFilter::Error)
+                .item("Warn", LogViewFilter::Warn)
+                .item("Info", LogViewFilter::Info)
+                .item("Debug", LogViewFilter::Debug)
+                .on_submit({
+                    move |s, new_filter| {
+                        s.call_on_id(&debug_view_id, {
+                            move |debug_view: &mut views::DebugView| {
+                                debug_view.set_filter(new_filter.clone());
+                            }
+                        });
+                    }
+                }),
+        )
     }
 }
 
@@ -35,11 +68,12 @@ impl DebugView {
     /// Creates a new DebugView.
     pub fn new() -> Self {
         DebugView {
-            filter: LogViewFilter::Debug
+            filter: LogViewFilter::Debug,
         }
     }
 
-    pub fn set_filter(&mut self, new_filter: LogViewFilter) {
+    /// Updates the maximum log level of logs displayed within the DebugView
+    fn set_filter(&mut self, new_filter: LogViewFilter) {
         self.filter = new_filter;
     }
 }
@@ -65,7 +99,10 @@ impl View for DebugView {
                     (0, i),
                     &format!(
                         "{} | [     ] | {} | {}",
-                        record.time.with_timezone(&chrono::Local).format("%T%.3f"),
+                        record
+                            .time
+                            .with_timezone(&chrono::Local)
+                            .format("%T%.3f"),
                         record.target,
                         record.message
                     ),
@@ -81,7 +118,7 @@ impl View for DebugView {
                     printer.print((16, i), &format!("{:5}", record.level))
                 });
 
-                i +=1 ;
+                i += 1;
             }
         }
     }
@@ -97,7 +134,13 @@ impl View for DebugView {
         // The longest line sets the width
         let w = logs
             .iter()
-            .map(|record| record.message.width() + record.target.width() + level_width + time_width + separator_width * 3)
+            .map(|record| {
+                record.message.width()
+                    + record.target.width()
+                    + level_width
+                    + time_width
+                    + separator_width * 3
+            })
             .max()
             .unwrap_or(1);
         let h = logs.len();

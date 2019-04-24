@@ -15,6 +15,8 @@ static LOGGER: CursiveLogger = CursiveLogger;
 pub struct Record {
     /// Log level used for this record
     pub level: log::Level,
+    /// Module that logged this message
+    pub target: String,
     /// Time this message was logged
     pub time: chrono::DateTime<chrono::Utc>,
     /// Message content
@@ -40,6 +42,7 @@ impl log::Log for CursiveLogger {
         }
         logs.push_back(Record {
             level: record.level(),
+            target: format!("{}", record.target()),
             message: format!("{}", record.args()),
             time: chrono::Utc::now(),
         });
