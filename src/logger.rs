@@ -25,8 +25,9 @@ pub struct Record {
 
 lazy_static! {
     /// The name of a module, which the user can filter logs for using a `DebugFilter`
-    pub static ref MODULE: Mutex<VecDeque<String>> =
-        Mutex::new(VecDeque::new());
+    /// Only initiated if the user calls `init_for_module`
+    pub static ref MODULE: Mutex<Option<String>> =
+        Mutex::new(None);
 }
 
 lazy_static! {
@@ -65,17 +66,19 @@ impl log::Log for CursiveLogger {
         true
     }
 
-
     fn log(&self, record: &log::Record<'_>) {
         log_record_to(&record, &LOGS);
 
+        let custom_module = MODULE.lock().unwrap();
         //  If the logger has been configured with the ability to filter logs for a specific
         //  module, and this log is from said module, add it to the module logs circular buffer
-        let custom_module = MODULE.lock().unwrap();
-        let record_target = record.target().split("::").collect::<Vec<&str>>()[0];
-
-        if custom_module.len() != 0 && custom_module[0] == record_target {
-            log_record_to(&record, &MODULE_LOGS);
+        match *custom_module {
+            Some(ref module_name) => {
+                if record.target().split("::").collect::<Vec<&str>>()[0] == module_name {
+                    log_record_to(&record, &MODULE_LOGS)
+                }
+            }
+            None => return
         }
     }
 
@@ -99,10 +102,12 @@ pub fn init() {
     log::set_max_level(log::LevelFilter::Trace);
 }
 
-/// Initialise the Cursive logger, also adding the ability to filter debug logs by
-/// module
+/// Initialise the Cursive logger, adding the ability to filter debug logs by module
 pub fn init_for_module(module: String) {
-    MODULE.lock().unwrap().push_back(module);
+    let mut custom_module = MODULE.lock().unwrap();
+    *custom_module = Some(module);
+
+    // TODO: Configure the deque size?
     MODULE_LOGS.lock().unwrap().reserve(1_000);
 
     init();
