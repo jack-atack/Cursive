@@ -29,6 +29,7 @@ lazy_static! {
         Mutex::new(VecDeque::new());
 }
 
+
 impl log::Log for CursiveLogger {
     fn enabled(&self, _metadata: &log::Metadata<'_>) -> bool {
         true
@@ -40,9 +41,13 @@ impl log::Log for CursiveLogger {
         if logs.len() == logs.capacity() {
             logs.pop_front();
         }
+
+        //  Only to display the high-level module
+        let record_target = record.target().split("::").collect::<Vec<&str>>()[0];
+
         logs.push_back(Record {
             level: record.level(),
-            target: format!("{}", record.target()),
+            target: format!("{}", record_target),
             message: format!("{}", record.args()),
             time: chrono::Utc::now(),
         });
