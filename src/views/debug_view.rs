@@ -8,7 +8,7 @@ use crate::Printer;
 use unicode_width::UnicodeWidthStr;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum LogViewFilter {
+enum LogViewFilter {
     Error,
     Warn,
     Info,
@@ -16,7 +16,7 @@ pub enum LogViewFilter {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ModuleFilter {
+enum ModuleFilter {
     All,
     Module,
 }
@@ -37,7 +37,7 @@ fn record_above_set_filter(
     }
 }
 
-
+/// Internal Struct, part of the public DebugViewFilter
 struct DebugLogFilter {}
 impl DebugLogFilter {
     fn new(debug_view_id: &'static str) -> views::Panel<views::BoxView<views::ListView>> {
@@ -62,6 +62,7 @@ impl DebugLogFilter {
     }
 }
 
+/// Internal Struct, part of the public DebugViewFilter
 struct DebugSetLogLevel {}
 impl DebugSetLogLevel {
     fn new() -> views::Panel<views::BoxView<views::ListView>> {
@@ -82,6 +83,7 @@ impl DebugSetLogLevel {
     }
 }
 
+/// Internal Struct, part of the public DebugViewFilter
 struct DebugModFilter {}
 impl DebugModFilter {
     fn new(debug_view_id: &'static str) -> views::Panel<views::BoxView<views::ListView>> {
@@ -98,10 +100,13 @@ impl DebugModFilter {
                     }
                 });
 
-        let modules = logger::MODULE.lock().unwrap();
-
-        for module in modules.iter() {
-            filter_module_select_view.add_item(module.to_string(), ModuleFilter::Module)
+        // If the logger has been initialised to monitor a custom module, add to the SelectView
+        let module = logger::MODULE.lock().unwrap();
+        match *module {
+            Some(ref module_name) => {
+                filter_module_select_view.add_item(module_name.to_string(), ModuleFilter::Module)
+            },
+            None => ()
         }
 
         views::Panel::new(views::BoxView::with_full_width(views::ListView::new().child(
@@ -126,8 +131,8 @@ impl DebugViewFilter {
 
 /// View used for debugging, showing logs.
 pub struct DebugView {
-    filter: LogViewFilter,
-    module: ModuleFilter
+    log_filter: LogViewFilter,
+    module_filter: ModuleFilter
     // TODO: wrap log lines if needed, and save the line splits here.
 }
 
@@ -135,19 +140,19 @@ impl DebugView {
     /// Creates a new DebugView.
     pub fn new() -> Self {
         DebugView {
-            filter: LogViewFilter::Debug,
-            module: ModuleFilter::All
+            log_filter: LogViewFilter::Debug,
+            module_filter: ModuleFilter::All
         }
     }
 
     /// Updates the maximum log level of logs displayed within the DebugView
     fn set_filter(&mut self, new_filter: LogViewFilter) {
-        self.filter = new_filter;
+        self.log_filter = new_filter;
     }
 
     /// Updates the maximum log level of logs displayed within the DebugView
-    fn set_module(&mut self, new_module: ModuleFilter) {
-        self.module = new_module;
+    fn set_module(&mut self, new_filter: ModuleFilter) {
+        self.module_filter = new_filter;
     }
 }
 
@@ -159,18 +164,18 @@ impl Default for DebugView {
 
 impl View for DebugView {
     fn draw(&self, printer: &Printer<'_, '_>) {
-        let logs = match self.module {
+        let logs_to_display = match self.module_filter {
             ModuleFilter::All => logger::LOGS.lock().unwrap(),
             ModuleFilter::Module => logger::MODULE_LOGS.lock().unwrap()
         };
 
         // Only print the last logs, so skip what doesn't fit
-        let skipped = logs.len().saturating_sub(printer.size.y);
+        let skipped = logs_to_display.len().saturating_sub(printer.size.y);
 
         let mut i = 0;
 
-        for record in logs.iter().skip(skipped) {
-            if record_above_set_filter(record.level, self.filter.clone()) {
+        for record in logs_to_display.iter().skip(skipped) {
+            if record_above_set_filter(record.level, self.log_filter.clone()) {
                 // TODO: Apply style to message? (Ex: errors in bold?)
                 // TODO: customizable time format? (24h/AM-PM)
                 printer.print(
