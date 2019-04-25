@@ -36,15 +36,15 @@ pub struct DebugFilter {}
 
 impl DebugFilter {
     /// Creates a new DebugFilter, acting on the DebugView with the passed in view ID
-    pub fn new(debug_view_id: String) -> views::ListView {
-        views::ListView::new().child(
-            "Max Log Level",
+    pub fn new(debug_view_id: String) -> views::LinearLayout {
+        let filter_view = views::Panel::new(views::BoxView::with_full_width(views::ListView::new().child(
+            "Filter Logs",
             views::SelectView::new()
                 .popup()
-                .item("Error", LogViewFilter::Error)
-                .item("Warn", LogViewFilter::Warn)
-                .item("Info", LogViewFilter::Info)
                 .item("Debug", LogViewFilter::Debug)
+                .item("Info", LogViewFilter::Info)
+                .item("Warn", LogViewFilter::Warn)
+                .item("Error", LogViewFilter::Error)
                 .on_submit({
                     move |s, new_filter| {
                         s.call_on_id(&debug_view_id, {
@@ -54,7 +54,26 @@ impl DebugFilter {
                         });
                     }
                 }),
-        )
+        )));
+
+        let set_loglevel_view = views::Panel::new(views::BoxView::with_full_width(views::ListView::new().child(
+            "Set Max Log Level",
+            views::SelectView::new()
+                .popup()
+                .item("Debug", log::LevelFilter::Debug)
+                .item("Info", log::LevelFilter::Info)
+                .item("Warn", log::LevelFilter::Warn)
+                .item("Error", log::LevelFilter::Error)
+                .on_submit({
+                    move |_s, new_log_level| {
+                        log::set_max_level(*new_log_level);
+                    }
+                }),
+        )));
+
+        views::LinearLayout::horizontal()
+            .child(set_loglevel_view)
+            .child(filter_view)
     }
 }
 
