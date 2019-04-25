@@ -40,7 +40,7 @@ fn record_above_set_filter(
 
 struct DebugLogFilter {}
 impl DebugLogFilter {
-    fn new(debug_view_id: String) -> views::Panel<views::BoxView<views::ListView>> {
+    fn new(debug_view_id: &'static str) -> views::Panel<views::BoxView<views::ListView>> {
         views::Panel::new(views::BoxView::with_full_width(views::ListView::new().child(
             "Filter Log Levels",
             views::SelectView::new()
@@ -84,7 +84,7 @@ impl DebugSetLogLevel {
 
 struct DebugModFilter {}
 impl DebugModFilter {
-    fn new(debug_view_id: String) -> views::Panel<views::BoxView<views::ListView>> {
+    fn new(debug_view_id: &'static str) -> views::Panel<views::BoxView<views::ListView>> {
         let mut filter_module_select_view = views::SelectView::new()
                 .popup()
                 .item("All", ModuleFilter::All)
@@ -116,11 +116,11 @@ pub struct DebugViewFilter {}
 impl DebugViewFilter {
     /// Creates a new DebugViewFilter, which filters the logs displayed in the DebugView with the
     /// passed in ID
-    pub fn new(debug_view_id: String) -> views::LinearLayout {
+    pub fn new(debug_view_id: &'static str) -> views::LinearLayout {
         views::LinearLayout::horizontal()
             .child(DebugSetLogLevel::new())
-            .child(DebugLogFilter::new(debug_view_id.clone()))
-            .child(DebugModFilter::new(debug_view_id.clone()))
+            .child(DebugLogFilter::new(&debug_view_id))
+            .child(DebugModFilter::new(&debug_view_id))
     }
 }
 

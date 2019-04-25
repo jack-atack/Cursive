@@ -237,7 +237,7 @@ impl Cursive {
     /// Currently, this will show logs if [`logger::init()`](crate::logger::init()) was called.
     pub fn show_debug_console(&mut self) {
         let debug_log_filter = views::Panel::new(views::DebugViewFilter::new(
-            DEBUG_VIEW_ID.to_string(),
+            DEBUG_VIEW_ID,
         ));
         let debug_logs = views::ScrollView::new(views::IdView::new(
             DEBUG_VIEW_ID,
