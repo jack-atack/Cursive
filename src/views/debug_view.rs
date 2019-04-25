@@ -15,6 +15,12 @@ pub enum LogViewFilter {
     Debug,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum ModuleFilter {
+    All,
+    Module,
+}
+
 fn record_above_set_filter(
     record_level: log::Level,
     display_level: LogViewFilter,
@@ -31,14 +37,12 @@ fn record_above_set_filter(
     }
 }
 
-/// View used to toggle the log-levels shown within the debug log console
-pub struct DebugFilter {}
 
-impl DebugFilter {
-    /// Creates a new DebugFilter, acting on the DebugView with the passed in view ID
-    pub fn new(debug_view_id: String) -> views::LinearLayout {
-        let filter_view = views::Panel::new(views::BoxView::with_full_width(views::ListView::new().child(
-            "Filter Logs",
+struct DebugLogFilter {}
+impl DebugLogFilter {
+    fn new(debug_view_id: String) -> views::Panel<views::BoxView<views::ListView>> {
+        views::Panel::new(views::BoxView::with_full_width(views::ListView::new().child(
+            "Filter Log Levels",
             views::SelectView::new()
                 .popup()
                 .item("Debug", LogViewFilter::Debug)
@@ -54,9 +58,14 @@ impl DebugFilter {
                         });
                     }
                 }),
-        )));
+        )))
+    }
+}
 
-        let set_loglevel_view = views::Panel::new(views::BoxView::with_full_width(views::ListView::new().child(
+struct DebugSetLogLevel {}
+impl DebugSetLogLevel {
+    fn new() -> views::Panel<views::BoxView<views::ListView>> {
+        views::Panel::new(views::BoxView::with_full_width(views::ListView::new().child(
             "Set Max Log Level",
             views::SelectView::new()
                 .popup()
@@ -69,17 +78,56 @@ impl DebugFilter {
                         log::set_max_level(*new_log_level);
                     }
                 }),
-        )));
+        )))
+    }
+}
 
+struct DebugModFilter {}
+impl DebugModFilter {
+    fn new(debug_view_id: String) -> views::Panel<views::BoxView<views::ListView>> {
+        let mut filter_module_select_view = views::SelectView::new()
+                .popup()
+                .item("All", ModuleFilter::All)
+                .on_submit({
+                    move |s, mod_filter| {
+                        s.call_on_id(&debug_view_id, {
+                            move |debug_view: &mut views::DebugView| {
+                                debug_view.set_module(mod_filter.clone());
+                            }
+                        });
+                    }
+                });
+
+        let modules = logger::MODULE.lock().unwrap();
+
+        for module in modules.iter() {
+            filter_module_select_view.add_item(module.to_string(), ModuleFilter::Module)
+        }
+
+        views::Panel::new(views::BoxView::with_full_width(views::ListView::new().child(
+            "Filter Log Modules",
+            filter_module_select_view
+        )))
+    }
+}
+
+/// View to toggle the logs shown within the debug log console, or update the max log level
+pub struct DebugViewFilter {}
+impl DebugViewFilter {
+    /// Creates a new DebugViewFilter, which filters the logs displayed in the DebugView with the
+    /// passed in ID
+    pub fn new(debug_view_id: String) -> views::LinearLayout {
         views::LinearLayout::horizontal()
-            .child(set_loglevel_view)
-            .child(filter_view)
+            .child(DebugSetLogLevel::new())
+            .child(DebugLogFilter::new(debug_view_id.clone()))
+            .child(DebugModFilter::new(debug_view_id.clone()))
     }
 }
 
 /// View used for debugging, showing logs.
 pub struct DebugView {
     filter: LogViewFilter,
+    module: ModuleFilter
     // TODO: wrap log lines if needed, and save the line splits here.
 }
 
@@ -88,12 +136,18 @@ impl DebugView {
     pub fn new() -> Self {
         DebugView {
             filter: LogViewFilter::Debug,
+            module: ModuleFilter::All
         }
     }
 
     /// Updates the maximum log level of logs displayed within the DebugView
     fn set_filter(&mut self, new_filter: LogViewFilter) {
         self.filter = new_filter;
+    }
+
+    /// Updates the maximum log level of logs displayed within the DebugView
+    fn set_module(&mut self, new_module: ModuleFilter) {
+        self.module = new_module;
     }
 }
 
@@ -105,11 +159,16 @@ impl Default for DebugView {
 
 impl View for DebugView {
     fn draw(&self, printer: &Printer<'_, '_>) {
-        let logs = logger::LOGS.lock().unwrap();
+        let logs = match self.module {
+            ModuleFilter::All => logger::LOGS.lock().unwrap(),
+            ModuleFilter::Module => logger::MODULE_LOGS.lock().unwrap()
+        };
+
         // Only print the last logs, so skip what doesn't fit
         let skipped = logs.len().saturating_sub(printer.size.y);
 
         let mut i = 0;
+
         for record in logs.iter().skip(skipped) {
             if record_above_set_filter(record.level, self.filter.clone()) {
                 // TODO: Apply style to message? (Ex: errors in bold?)
@@ -118,10 +177,7 @@ impl View for DebugView {
                     (0, i),
                     &format!(
                         "{} | [     ] | {} | {}",
-                        record
-                            .time
-                            .with_timezone(&chrono::Local)
-                            .format("%T%.3f"),
+                        record.time.with_timezone(&chrono::Local).format("%T%.3f"),
                         record.target,
                         record.message
                     ),
