@@ -16,7 +16,7 @@ pub struct Record {
     /// Log level used for this record
     pub level: log::Level,
     /// Module that logged this message
-    pub target: String,
+    pub module: String,
     /// Time this message was logged
     pub time: chrono::DateTime<chrono::Utc>,
     /// Message content
@@ -43,6 +43,11 @@ lazy_static! {
         Mutex::new(VecDeque::new());
 }
 
+// Returns the top level module for the log, or '<unknown>' if we fail to parse it
+fn get_top_level_record_module(record: &log::Record<'_>) -> String {
+    record.target().split("::").next().unwrap_or_else(|| "<unknown>").to_string()
+}
+
 fn log_record_to(record: &log::Record<'_>, log_buffer: &Mutex<VecDeque<Record>>) {
     let mut logs = log_buffer.lock().unwrap();
 
@@ -52,10 +57,11 @@ fn log_record_to(record: &log::Record<'_>, log_buffer: &Mutex<VecDeque<Record>>)
     }
 
     //  Only display the high-level module
-    let record_target = record.target().split("::").collect::<Vec<&str>>()[0];
+    let record_module = get_top_level_record_module(&record);
+
     logs.push_back(Record {
         level: record.level(),
-        target: format!("{}", record_target),
+        module: record_module,
         message: format!("{}", record.args()),
         time: chrono::Utc::now(),
     });
@@ -74,7 +80,7 @@ impl log::Log for CursiveLogger {
         //  module, and this log is from said module, add it to the module logs circular buffer
         match *custom_module {
             Some(ref module_name) => {
-                if record.target().split("::").collect::<Vec<&str>>()[0] == module_name {
+                if get_top_level_record_module(&record) == *module_name {
                     log_record_to(&record, &MODULE_LOGS)
                 }
             }
@@ -103,9 +109,9 @@ pub fn init() {
 }
 
 /// Initialise the Cursive logger, adding the ability to filter debug logs by module
-pub fn init_for_module(module: String) {
+pub fn init_for_module(module: &str) {
     let mut custom_module = MODULE.lock().unwrap();
-    *custom_module = Some(module);
+    *custom_module = Some(module.to_string());
 
     // TODO: Configure the deque size?
     MODULE_LOGS.lock().unwrap().reserve(1_000);
